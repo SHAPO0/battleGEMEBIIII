@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battleship Game</title>
+    <link rel="stylesheet" href="battleship.css">
+    <style>
+        body {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f0f0f0;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(10, 40px);
+    grid-template-rows: repeat(10, 40px);
+    gap: 1px;
+    border: 1px solid #333;
+    background-color: #fff;
+    margin-bottom: 50px;
+}
+
+.cell {
+    width: 40px;
+    height: 40px;
+    border: 1px solid #ccc;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.ship {
+    background-color: #3498db;
+}
+
+.hit {
+    background-color: #e74c3c;
+    color: #fff;
+}
+
+.drag-container {
+    display: flex;
+    margin-top: 20px;
+}
+
+.ship {
+    width: 40px;
+    height: 40px;
+    margin-right: 5px;
+    cursor: move;
+}
+
+.ship-preview {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    background-color: #3498db;
+    pointer-events: none; 
+    opacity: 0.7; 
+    display: none; 
+}
+button {
+    background-color: #2ecc71; 
+    color: #fff; 
+    border: none; 
+    margin: 10px;
+}
+button:hover {
+background-color: #27ae60; 
+}
+
+#computerBoard .cell.ship {
+background-color: #fff; 
+}
+
+#computerBoard .ship {
+background-color: #3498db; 
+}
+
+#computerBoard .cell {
+width: 40px;
+height: 40px;
+border: 1px solid #ccc;
+display: flex;
+justify-content: center;
+align-items: center;
+cursor: pointer;
+font-size: 0.8rem;
+position: relative; 
+}
+.hit {
+    background-color: #2ecc71; 
+    color: #fff;
+}
+
+.miss {
+    background-color:red; 
+    color: #fff;
+}
+.green {
+    background-color: green;
+}
+
+.red {
+    background-color: red;
+}
+.hit.green {
+    background-color: green;
+}
+
+.hit.red, .miss {
+    background-color: red;
+}
+    </style>
+</head>
+<body>
+    <div>
+        <h2>Your Board</h2>
+        <div id="playerBoard" class="board" onclick="placePlayerShip(event)" ondragover="allowDrop(event)" ondrop="drop(event)"></div>
+        <div class="drag-container">
+            <div id="ship1" class="ship" draggable="true" ondragstart="drag(event)" data-length="1"></div>
+            <div id="ship2" class="ship" draggable="true" ondragstart="drag(event)" data-length="2"></div>
+            <div id="ship3" class="ship" draggable="true" ondragstart="drag(event)" data-length="3"></div>
+            <div id="ship4" class="ship" draggable="true" ondragstart="drag(event)" data-length="4"></div>
+            <div id="ship5" class="ship" draggable="true" ondragstart="drag(event)" data-length="5"></div>
+            <div class="ship-preview" id="shipPreview"></div>
+        </div>
+        <div class="hidden-ships" id="hiddenShips"></div>
+        <button onclick="flipShips()">Flip Ships</button>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+    <div>
+        <h2>Computer's Board</h2>
+        <div id="computerBoard" class="board" onclick="playerAttack(event)"></div>
+    </div>
+
+    <script>
+        const playerBoard = document.getElementById('playerBoard');
+        const computerBoard = document.getElementById('computerBoard');
+        const hiddenShipsContainer = document.getElementById('hiddenShips');
+        const shipPreview = document.getElementById('shipPreview');
+        const boardSize = 10;
+
+        initializeBoard(playerBoard);
+        initializeBoard(computerBoard, true);
+
+        // Drag and drop variables
+        let draggedShip = null;
+        let verticalPlacement = false;
+        let currentTurn = 'player';
+        let currentPlayerAttackRow = -1;
+        let currentPlayerAttackCol = -1;
+        let computerRow = -1;
+        let computerCol = -1;
+        let hitShipThisTurn = false;
+        let lastHitRow = -1;
+        let lastHitCol = -1;
+// boardebis zomebi da a.sh
+        function initializeBoard(board, isComputer = false) {
+            for (let i = 0; i < boardSize; i++) {
+                for (let j = 0; j < boardSize; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+
+                    if (!isComputer) {
+                        cell.onclick = playerAttack;
+                    }
+
+                    board.appendChild(cell);
+                }
+            }
+
+            if (isComputer) {
+                placeComputerShips();
+            }
+        }
+// chemi gemebis dalageba
+        function placePlayerShip(event) {
+            const cell = event.target;
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+
+            if (draggedShip && !draggedShip.classList.contains('placed')) {
+                const length = parseInt(draggedShip.dataset.length);
+
+                if (validatePlacement(row, col, length)) {
+                    for (let i = 0; i < length; i++) {
+                        const targetCell = playerBoard.querySelector(`.cell[data-row="${row + (verticalPlacement ? i : 0)}"][data-col="${col + (verticalPlacement ? 0 : i)}"]`);
+                        targetCell.classList.add('ship');
+                    }
+
+                    draggedShip.classList.add('placed');
+
+                    
+                    draggedShip.remove();
+                    draggedShip = null;
+
+               
+                    shipPreview.style.display = 'none';
+                }
+            }
+        }
+// xels ar vkideb imitoro ireva mere
+function validatePlacementWithinBounds(row, col, length) {
+    const direction = verticalPlacement ? 1 : 0;
+
+
+    if (
+        row + (verticalPlacement ? length : 0) > boardSize ||
+        col + (verticalPlacement ? 0 : length) > boardSize
+    ) {
+        return false;
+    }
+
+    return true;
+}
+// boardis sazgvrebshi chateva 
+function validatePlacementWithinBounds(row, col, length) {
+    const direction = verticalPlacement ? 1 : 0;
+
+   
+    if (
+        row + (verticalPlacement ? length : 0) > boardSize ||
+        col + (verticalPlacement ? 0 : length) > boardSize
+    ) {
+        return false;
+    }
+
+    return true;
+}
+// swori ganlageba 
+        function validatePlacement(row, col, length) {
+            const direction = verticalPlacement ? 1 : 0;
+
+            for (let i = -1; i <= length; i++) {
+                for (let j = -1; j <= 1; j++) {
+                    const neighborCell = playerBoard.querySelector(`.cell[data-row="${row + i}"][data-col="${col + direction + j}"]`);
+                    if (neighborCell && neighborCell.classList.contains('ship')) {
+                        return false;
+                    }
+                }
+            }
+
+            for (let i = 0; i < length; i++) {
+                const targetCell = playerBoard.querySelector(`.cell[data-row="${row + i}"][data-col="${col + direction}"]`);
+                if (!targetCell || targetCell.classList.contains('ship')) {
+                    return false;
+                }
+            }
+            return true;
+        }
+// kompis gemebis ganlageba vertikalurad da horizontalurad
+        function placeComputerShips() {
+    const shipLengths = [1, 2, 3, 4, 5];
+
+    shipLengths.forEach(length => {
+        let shipPlaced = false;
+
+        while (!shipPlaced) {
+            const orientation = Math.random() < 0.5 ? 'horizontal' : 'vertical';
+            const randomRow = Math.floor(Math.random() * (boardSize - (orientation === 'vertical' ? length : 0)));
+            const randomCol = Math.floor(Math.random() * (boardSize - (orientation === 'horizontal' ? length : 0)));
+
+            if (validateComputerPlacement(randomRow, randomCol, length, orientation)) {
+                for (let i = 0; i < length; i++) {
+                    const targetCell = computerBoard.querySelector(`.cell[data-row="${randomRow + (orientation === 'vertical' ? i : 0)}"][data-col="${randomCol + (orientation === 'horizontal' ? i : 0)}"]`);
+                    targetCell.classList.add('ship', 'hidden-ship'); 
+                }
+
+                shipPlaced = true;
+            }
+        }
+    });
+}
+// es kompis gemebis ganlageba aqac 1 bloki dashoreba
+        function validateComputerPlacement(row, col, length, orientation) {
+    for (let i = -1; i <= length; i++) {
+        for (let j = -1; j <= 1; j++) {
+            const neighborCell = computerBoard.querySelector(`.cell[data-row="${row + i}"][data-col="${col + (orientation === 'horizontal' ? i : j)}"]`);
+            if (neighborCell && neighborCell.classList.contains('ship')) {
+                return false;
+            }
+        }
+    }
+
+    // maqsimaluri distancia gavxade 1 bloki gemebs shoris 
+    const checkDistance = (r, c) => {
+        const targetCell = computerBoard.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+        return !targetCell || !targetCell.classList.contains('ship');
+    };
+
+    if (orientation === 'horizontal') {
+        for (let i = -1; i <= length; i++) {
+            if (!checkDistance(row, col + i) || !checkDistance(row + 1, col + i) || !checkDistance(row - 1, col + i)) {
+                return false;
+            }
+        }
+    } else {
+        for (let i = -1; i <= length; i++) {
+            if (!checkDistance(row + i, col) || !checkDistance(row + i, col + 1) || !checkDistance(row + i, col - 1)) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+// chemi tavdasxmai
+function playerAttack(event) {
+    if (currentTurn === 'player') {
+        const cell = event.target;
+        const row = parseInt(cell.dataset.row);
+        const col = parseInt(cell.dataset.col);
+
+        if (!cell.classList.contains('hit') && !cell.classList.contains('miss')) {
+            if (cell.classList.contains('ship')) {
+                cell.classList.remove('ship'); // remove .ship class
+                cell.classList.add('hit', 'green'); // add 'green' class
+
+                lastHitRow = row;
+                lastHitCol = col;
+
+                if (checkAllShipsSunk('computerBoard')) {
+                    alert("საღოლ! დაადუღე თუ არა?!");
+                    currentTurn = 'none';
+                } else {
+                    
+                }
+            } else {
+                cell.classList.add('miss', 'red'); // add 'red' class
+
+                switchTurn('computer');
+            }
+        }
+    }
+}
+
+document.querySelectorAll('#computerBoard .cell').forEach(cell => {
+    cell.addEventListener('click', playerAttack);
+});
+
+// drag and drop
+        function drag(event) {
+            draggedShip = event.target;
+
+           
+            shipPreview.style.width = `${parseInt(draggedShip.dataset.length) * 40}px`; 
+            shipPreview.style.height = `${40}px`; 
+            shipPreview.style.display = 'block';
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            const cell = event.target;
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+
+            if (draggedShip && !draggedShip.classList.contains('placed')) {
+                const length = parseInt(draggedShip.dataset.length);
+
+                
+                if (validatePlacement(row, col, length)) {
+                    for (let i = 0; i < length; i++) {
+                        const targetCell = playerBoard.querySelector(`.cell[data-row="${row + (verticalPlacement ? i : 0)}"][data-col="${col + (verticalPlacement ? 0 : i)}"]`);
+                        targetCell.classList.add('ship');
+                    }
+
+                    
+                    draggedShip.classList.add('placed');
+
+                   
+                    draggedShip.remove();
+                    draggedShip = null;
+
+         
+                    shipPreview.style.display = 'none';
+                }
+            }
+        }
+//flip gilakis funqcia 
+        function flipShips() {
+        
+            verticalPlacement = !verticalPlacement;
+
+            const hiddenShips = document.querySelectorAll('.hidden-ship');
+            hiddenShips.forEach(ship => {
+                const shipLength = parseInt(ship.dataset.length);
+                const shipWidth = ship.style.width;
+                const shipHeight = ship.style.height;
+
+                ship.style.width = verticalPlacement ? shipHeight : shipWidth;
+                ship.style.height = verticalPlacement ? shipWidth : shipHeight;
+            });
+
+            // Flip the ship preview
+            if (draggedShip && !draggedShip.classList.contains('placed')) {
+                const draggedShipLength = parseInt(draggedShip.dataset.length);
+                const previewWidth = parseInt(shipPreview.style.width);
+                const previewHeight = parseInt(shipPreview.style.height);
+
+                shipPreview.style.width = verticalPlacement ? `${previewHeight}px` : `${previewWidth}px`;
+                shipPreview.style.height = verticalPlacement ? `${previewWidth}px` : `${previewHeight}px`;
+            }
+        } 
+// start game gilaki romelic ver avamushave 
+        function startGame() {
+    const hiddenShips = document.querySelectorAll('#hiddenShips .ship');
+
+    if (hiddenShips.length > 0) {
+        alert("Place all your ships first!");
+    } else {
+        initializeBoard(playerBoard);
+        initializeBoard(computerBoard, true);
+
+      
+        placeComputerShips();
+
+       
+        playerBoard.onclick = null;
+
+       
+        computerBoard.onclick = playerAttack;
+
+        hideComputerShips();
+
+    
+        alert("Game is starting!");
+
+        alert("Your turn!");
+    }
+}
+// kompis gemebi ro ar chandes
+function hideComputerShips() {
+            const computerShips = document.querySelectorAll('#computerBoard .ship');
+            computerShips.forEach(ship => ship.classList.add('hidden-ship'));
+        }
+        function getNeighboringCells(cell) {
+    const row = parseInt(cell.dataset.row);
+    const col = parseInt(cell.dataset.col);
+    const board = document.getElementById(currentTurn === 'computer' ? 'computerBoard' : 'playerBoard');
+
+    const neighbors = [];
+
+    for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+            if (!(i === 0 && j === 0)) {
+                const neighborCell = board.querySelector(`.cell[data-row="${row + i}"][data-col="${col + j}"]`);
+                if (neighborCell && !neighborCell.classList.contains('hit') && !neighborCell.classList.contains('miss')) {
+                    neighbors.push(neighborCell);
+                }
+            }
+        }
+    }
+
+    return neighbors;
+}
+// kompis tavdasxmai
+function computerAttack() {
+    if (currentTurn === 'computer') {
+        const previousHitCell = document.querySelector(`#${currentTurn}Board .hit:last-child`);
+
+        if (previousHitCell) {
+            const neighbors = getNeighboringCells(previousHitCell);
+            if (neighbors.length > 0) {
+                const targetCell = neighbors[Math.floor(Math.random() * neighbors.length)];
+                attackCell(targetCell);
+                return;
+            }
+        }
+
+        const playerCells = document.querySelectorAll('#playerBoard .cell:not(.hit):not(.miss)');
+        const randomIndex = Math.floor(Math.random() * playerCells.length);
+        const targetCell = playerCells[randomIndex];
+
+        attackCell(targetCell);
+    }
+}
+// kompis gartymebi da alaertebi
+function attackCell(targetCell) {
+    if (!targetCell.classList.contains('hit') && !targetCell.classList.contains('miss')) {
+        if (targetCell.classList.contains('ship')) {
+            targetCell.classList.add('hit');
+            alert("გაარტყა ბიჭო!");
+
+            if (checkAllShipsSunk('playerBoard')) {
+                alert("ეჰ წააგე! კომპიუტერმა მოგიგო!");
+            } else {
+                switchTurn('computer');
+            }
+        } else {
+            targetCell.classList.add('miss');
+            alert("გამაზა! ");
+
+            switchTurn('player');
+        }
+    }
+}
+// sechvlebi
+        function switchTurn(nextTurn) {
+            currentTurn = nextTurn;
+            if (currentTurn === 'computer') {
+                
+                computerAttack();
+            } else {
+        
+            }
+        }
+
+        function checkAllShipsSunk(boardId) {
+            const allShips = document.querySelectorAll(`#${boardId} .ship`);
+            const sunkShips = document.querySelectorAll(`#${boardId} .hit`);
+
+            return allShips.length === sunkShips.length;
+        }
+
+
+
+    </script>
+</body>
+</html>
